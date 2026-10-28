@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">#FFCC00</item>
+        <item name="colorPrimaryVariant">#FF9900</item>
+        <item name="colorOnPrimary">#333333</item>
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">#FC0</item>
+        <item name="colorSecondaryVariant">#F90</item>
+        <item name="colorOnSecondary">#333333</item>
+        <!-- Status bar color -->
+        <item name="android:statusBarColor">#FF9900</item>
+        <!-- Window background -->
+        <item name="android:windowBackground">#FFCC00</item>
+    </style>
+</resources>

@@ -1,0 +1,15 @@
+{
+  "name": "yandex-boards",
+  "version": "1.0.0",
+  "description": "Яндекс Доски — Android",
+  "main": "index.html",
+  "scripts": {
+    "android": "npx cap run android",
+    "build": "npx cap sync",
+    "open:android": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/android": "^7.4.3"
+  }
+}

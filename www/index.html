@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#FFCC00">
+  <title>Яндекс Доски</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    /* Экран авторизации */
+    #auth-screen {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(135deg, #FFCC00, #FF9900);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      transition: opacity 0.5s, transform 0.5s;
+    }
+    #auth-screen.hidden {
+      opacity: 0;
+      transform: scale(1.05);
+      pointer-events: none;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 24px;
+      padding: 36px 32px;
+      max-width: 320px;
+      width: 90%;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+      text-align: center;
+    }
+
+    .logo {
+      width: 72px; height: 72px;
+      background: linear-gradient(135deg, #FFCC00, #FF9900);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px;
+      margin: 0 auto 20px;
+    }
+
+    h1 {
+      font-size: 20px; font-weight: 700; color: #333;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 13px; color: #888;
+      margin-bottom: 24px;
+    }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 14px 32px;
+      font-size: 15px; font-weight: 600;
+      color: #333; background: #FFCC00; border: none; border-radius: 14px;
+      cursor: pointer; width: 100%;
+      box-shadow: 0 2px 8px rgba(255,204,0,0.3);
+      transition: all 0.2s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.5; }
+
+    .spinner {
+      display: none;
+      margin: 16px auto 0;
+      width: 32px; height: 32px;
+      border: 3px solid rgba(255,204,0,0.2);
+      border-top-color: #FF9900;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .spinner.visible { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .status {
+      margin-top: 12px;
+      font-size: 12px;
+      color: rgba(51,51,51,0.7);
+    }
+
+    /* Индикатор ориентации */
+    #orient {
+      position: fixed;
+      top: env(safe-area-inset-top, 12px);
+      right: 12px;
+      background: rgba(0,0,0,0.5);
+      color: #fff;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      z-index: 999;
+      letter-spacing: 0.5px;
+    }
+
+    /* Скрываем auth-screen, показываем iframe */
+    #webview-container {
+      width: 100%;
+      height: 100%;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Auth screen -->
+  <div id="auth-screen">
+    <div class="card">
+      <div class="logo">📁</div>
+      <h1>Яндекс Доски</h1>
+      <p class="subtitle">Авторизуйтесь для начала работы</p>
+      <button class="btn" id="btn">Войти через Яндекс</button>
+      <div class="spinner" id="spinner"></div>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+  <!-- Webview container -->
+  <div id="webview-container">
+    <iframe id="wb" allow="clipboard-write; fullscreen" allowfullscreen></iframe>
+  </div>
+
+  <div id="orient">—</div>
+
+  <script>
+    const CLIENT_ID = 'e44bb58e1b5b4577bec9ff2abb6dad3d';
+    const REDIRECT_URI = 'yandexboards://callback';
+    const WHITEBOARD_URL = 'https://boards.yandex.ru/whiteboard/?hash=e0469e6c2c6901788c0bd174fc2a7570';
+
+    const authScreen = document.getElementById('auth-screen');
+    const btn = document.getElementById('btn');
+    const spinner = document.getElementById('spinner');
+    const status = document.getElementById('status');
+    const wb = document.getElementById('wb');
+    const orient = document.getElementById('orient');
+
+    // === PKCE ===
+    async function genPKCE() {
+      const verifier = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
+        .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+
+      const hash = await crypto.subtle.digest('SHA-256',
+        new TextEncoder().encode(verifier));
+      const challenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
+        .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+
+      return { verifier, challenge };
+    }
+
+    // === OAuth ===
+    async function startOAuth() {
+      btn.disabled = true;
+      btn.textContent = 'Подключаюсь...';
+      spinner.classList.add('visible');
+      status.textContent = 'Открываю Яндекс...';
+
+      const { verifier, challenge } = await genPKCE();
+      sessionStorage.setItem('pkce_verifier', verifier);
+
+      const authUrl = `https://oauth.yandex.ru/authorize?` +
+        `client_id=${CLIENT_ID}` +
+        `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+        `&response_type=code` +
+        `&code_challenge=${challenge}` +
+        `&code_challenge_method=S256`;
+
+      // Открываем в Chrome (Android)
+      window.location.href = authUrl;
+    }
+
+    // === Обработка callback ===
+    async function handleCallback() {
+      const url = window.location.href;
+      const code = new URLSearchParams(url.split('?')[1] || '').get('code');
+
+      if (!code) {
+        status.textContent = 'Ошибка: code не получен';
+        btn.disabled = false;
+        btn.textContent = 'Повторить';
+        spinner.classList.remove('visible');
+        return;
+      }
+
+      const verifier = sessionStorage.getItem('pkce_verifier');
+      status.textContent = 'Обмен кода на токен...';
+
+      try {
+        const resp = await fetch('https://oauth.yandex.ru/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'authorization_code',
+            code: code,
+            client_id: CLIENT_ID,
+            code_verifier: verifier,
+          }),
+        });
+
+        const data = await resp.json();
+        if (!data.access_token) throw new Error(data.error || 'Token error');
+
+        localStorage.setItem('yandex_token', data.access_token);
+        showWhiteboard(data.access_token);
+      } catch(e) {
+        console.error(e);
+        status.textContent = 'Ошибка: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = 'Повторить';
+        spinner.classList.remove('visible');
+      }
+    }
+
+    // === Показать whiteboard ===
+    function showWhiteboard(token) {
+      authScreen.classList.add('hidden');
+      setTimeout(() => {
+        authScreen.style.display = 'none';
+        wb.src = WHITEBOARD_URL;
+        wb.style.display = 'block';
+      }, 400);
+    }
+
+    // === Ориентация ===
+    function updateOrient() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const isLandscape = w > h;
+      orient.textContent = isLandscape ? '▭ LAND' : '▯ PORT';
+    }
+
+    // === Инициализация ===
+    window.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('yandex_token');
+      if (token) {
+        showWhiteboard(token);
+      } else {
+        btn.addEventListener('click', startOAuth);
+      }
+
+      updateOrient();
+      window.addEventListener('resize', updateOrient);
+
+      // Проверяем deep link / callback
+      if (window.location.href.includes('code=')) {
+        handleCallback();
+      }
+    });
+  </script>
+</body>
+</html>
