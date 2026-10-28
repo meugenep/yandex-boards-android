@@ -3,8 +3,6 @@ name: Build APK
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -15,7 +13,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -24,13 +22,12 @@ jobs:
       - name: Setup Android SDK
         run: |
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
 
       - name: Build APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --info
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
